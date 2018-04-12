@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-registry
+spec:
+  selector:
+    app: registry
+  ports:
+  - port: 5000
+    targetPort: 5000
+    protocol: TCP
+  type: NodePort
+  clusterIP: 10.100.200.200
+
+---
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: my-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      containers:
+      - name: registry
+        image: registry:2
+        ports:
+        - containerPort: 5000
+        volumeMounts:
+        - name: registry-storage
+          readOnly: false
+          mountPath: /var/lib/registry
+        - name: registry-conf
+          readOnly: true
+          mountPath: /etc/docker/registry
+        - name: certs
+          readOnly: true
+          mountPath: /certs
+      volumes:
+      - name: registry-storage
+        hostPath:
+          path: /tmp/registry/storage
+      - name: registry-conf
+        hostPath:
+          path: /tmp/registry/conf
+      - name: certs
+        hostPath:
+          path: /tmp/certs
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-auth
+spec:
+  selector:
+    app: auth
+  clusterIP: 10.100.200.100
+  ports:
+  - port: 5001
+    targetPort: 5001
+    protocol: TCP
+#    nodePort: 5001
+  type: NodePort
+
+---
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: my-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+      - name: auth
+        image: 495609715/docker_auth
+        #command: ["/bin/bash"]
+        #args: ["/start.sh"]
+        command: ["/start.sh"]
+        ports:
+        - containerPort: 5001
+        volumeMounts:
+        - name: auth-script
+          readOnly: true
+          mountPath: /start.sh
+        - name: auth-config
+          readOnly: true
+          mountPath: /config
+        - name: auth-logs
+          readOnly: false
+          mountPath: /logs
+        - name: certs
+          readOnly: true
+          mountPath: /certs
+      volumes:
+      - name: auth-script
+        hostPath:
+          path: /tmp/auth/start.sh
+      - name: auth-config
+        hostPath:
+          path: /tmp/auth/config
+      - name: auth-logs
+        hostPath:
+          path: /tmp/auth/logs
+      - name: certs
+        hostPath:
+          path: /tmp/certs
